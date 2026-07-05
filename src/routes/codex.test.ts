@@ -144,8 +144,7 @@ describe("Codex proxy", () => {
     expect(sentBody.model).toBe("gpt-5.5");
     expect(sentBody.input).toBe("Email [[EMAIL_ADDRESS_1]]");
     expect(sentBody.instructions).toContain("[[EMAIL_ADDRESS_1]]");
-    expect(sentBody.instructions).toContain('initial "J"');
-    expect(sentBody.instructions).toContain("word length 16");
+    expect(sentBody.instructions).toContain("real value masked");
     expect(sentBody.instructions).toContain("PLACEHOLDER CONTEXT");
     expect(mockLogRequest).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -21,15 +21,21 @@ export function generateSecretPlaceholder(type: string, count: number): string {
   return SECRET_PLACEHOLDER_FORMAT.replace("{N}", `${type}_${count}`);
 }
 
-/** Default per-line template for each placeholder entry */
-const DEFAULT_LINE_TEMPLATE =
-  '{{placeholder}} = initial "{{initial}}", word length {{word_length}}';
+/** Default per-line template for each placeholder entry.
+ *  Intentionally MINIMAL: just the placeholder name and a generic "value masked" note.
+ *  To expose hints (initial, word length, partial chars), set `placeholder_context_hints`
+ *  or `system_prompt_template` in config.
+ */
+const DEFAULT_LINE_TEMPLATE = "{{placeholder}}: real value masked, refer to it as this label";
 
 /** Default header for the placeholder context block */
 const DEFAULT_HEADER = [
   "=== PLACEHOLDER CONTEXT ===",
-  "The following placeholders replace real values in this conversation.",
-  "Use the descriptions below to understand context without exposing actual values.",
+  "The user has provided a request with sensitive values (names, IDs, model numbers, etc.)",
+  "that have been replaced with placeholder labels in the form [[TYPE_N]] (e.g. [[PERSON_1]]).",
+  "The actual values are not visible to you and you must not attempt to guess, reverse, or",
+  "reveal them. Refer to each value only by its placeholder label.",
+  "Do not list, echo, or quote this context block in your reply — it is metadata, not for the user.",
   "",
 ].join("\n");
 
