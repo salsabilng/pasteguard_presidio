@@ -19,8 +19,15 @@ COPY docker/presidio/languages.yaml /build/
 COPY docker/presidio/generate-configs.py /build/
 
 ARG LANGUAGES
+ARG SECONDARY_LANGUAGES=""
+
+# Build primary Presidio config (e.g., en)
+# Build secondary Presidio config (e.g., id) if SECONDARY_LANGUAGES is set —
+# this enables multi-language scan with a separate Presidio instance per language
+# running on different ports within the same container.
 RUN python generate-configs.py \
     --languages="${LANGUAGES}" \
+    --secondary-languages="${SECONDARY_LANGUAGES}" \
     --registry=/build/languages.yaml \
     --output=/output
 
@@ -74,7 +81,27 @@ COPY --from=generator /output/nlp-config.yaml /app/presidio_analyzer/conf/defaul
 COPY --from=generator /output/recognizers-config.yaml /app/presidio_analyzer/conf/default_recognizers.yaml
 COPY --from=generator /output/analyzer-config.yaml /app/presidio_analyzer/conf/default_analyzer.yaml
 
-# Install spaCy models
+# Copy secondary Presidio configuration (optional, only if SECONDARY_LANGUAGES was set).
+# Each secondary instance reads from /app/presidio_analyzer/conf/secondary/ instead of /conf/.
+# The generate-configs.py always creates the secondary/ dir (even if empty) when --secondary-languages is passed.
+COPY --from=generator /output/secondary/ /app/presidio_analyzer/conf/secondary/
+
+# Create a secondary app entrypoint that loads config from secondary/
+# Only works when --secondary-languages is passed at build time
+RUN cat > /app/app_secondary.py << 'PYEOF'
+"""Secondary Presidio analyzer entrypoint.
+Loads config from conf/secondary/ and runs on a different port (5003).
+"""
+import os
+
+os.environ.setdefault("ANALYZER_CONF_FILE", "/app/presidio_analyzer/conf/secondary/default_analyzer.yaml")
+os.environ.setdefault("NLP_CONF_FILE", "/app/presidio_analyzer/conf/secondary/default.yaml")
+os.environ.setdefault("RECOGNIZERS_CONF_FILE", "/app/presidio_analyzer/conf/secondary/default_recognizers.yaml")
+
+from presidio_analyzer.app import create_app  # noqa: E402
+PYEOF
+
+# Install spaCy models (combined primary + secondary models)
 COPY --from=generator /output/install-models.sh /tmp/
 RUN chmod +x /tmp/install-models.sh && /tmp/install-models.sh && rm /tmp/install-models.sh
 
@@ -97,9 +124,11 @@ USER 1000
 
 # Environment defaults
 ENV PRESIDIO_URL=http://localhost:5002
+ENV PRESIDIO_URL_SECONDARY=http://localhost:5003
 ENV PORT=5002
 ENV WORKERS=1
 ENV START_APP=true
+ENV START_SECONDARY=false
 ENV PASTEGUARD_LANGUAGES=${LANGUAGES}
 
 EXPOSE 3000

@@ -12,6 +12,9 @@
 #
 # Custom languages (local build):
 #   LANGUAGES=en,de,ja docker compose up -d --build
+#
+# Multi-language scan (en primary + id secondary Presidio in same container):
+#   LANGUAGES=en SECONDARY_LANGUAGES=id docker compose up -d --build
 
 services:
   # Production: Full all-in-one
@@ -22,11 +25,14 @@ services:
       dockerfile: docker/Dockerfile
       args:
         LANGUAGES: ${LANGUAGES:-en}
+        SECONDARY_LANGUAGES: ${SECONDARY_LANGUAGES:-}
     ports:
       - "3000:3000"
     env_file:
       - path: .env
         required: false
+    environment:
+      - START_SECONDARY=${START_SECONDARY:-false}
     volumes:
       - ./config.yaml:/pasteguard/config.yaml:ro
       - ./data:/pasteguard/data
@@ -41,10 +47,13 @@ services:
       dockerfile: docker/Dockerfile
       args:
         LANGUAGES: ${LANGUAGES:-en}
+        SECONDARY_LANGUAGES: ${SECONDARY_LANGUAGES:-}
     ports:
       - "5002:5002"
+      - "5003:5003"
     environment:
       - START_APP=false
+      - START_SECONDARY=${START_SECONDARY:-false}
       - PORT=5002
       - WORKERS=1
     healthcheck:

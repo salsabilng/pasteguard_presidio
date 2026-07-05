@@ -22,7 +22,8 @@ export function generateSecretPlaceholder(type: string, count: number): string {
 }
 
 /** Default per-line template for each placeholder entry */
-const DEFAULT_LINE_TEMPLATE = "{{placeholder}} = initial \"{{initial}}\", word length {{word_length}}";
+const DEFAULT_LINE_TEMPLATE =
+  '{{placeholder}} = initial "{{initial}}", word length {{word_length}}';
 
 /** Default header for the placeholder context block */
 const DEFAULT_HEADER = [
@@ -77,9 +78,7 @@ export function resolveContextHint(
 
   return hint
     .replace(/\{\{type\}\}/g, type)
-    .replace(/\{\{value:([^}]+)\}\}/g, (_, selector) =>
-      extractValueChars(originalValue, selector),
-    )
+    .replace(/\{\{value:([^}]+)\}\}/g, (_, selector) => extractValueChars(originalValue, selector))
     .replace(/\{\{value\}\}/g, originalValue)
     .replace(/\{\{initial\}\}/g, (originalValue[0] ?? "?").toUpperCase())
     .replace(/\{\{word_length\}\}/g, String(originalValue.length));
@@ -135,8 +134,7 @@ export function buildPlaceholderContextDescription(
     const type = typeMatch ? typeMatch[1] : "";
     const contextHint = resolveContextHint(type ? hints[type] : undefined, type, original);
 
-    const line = DEFAULT_LINE_TEMPLATE
-      .replace(/\{\{placeholder\}\}/g, placeholder)
+    const line = DEFAULT_LINE_TEMPLATE.replace(/\{\{placeholder\}\}/g, placeholder)
       .replace(/\{\{initial\}\}/g, initial)
       .replace(/\{\{word_length\}\}/g, String(wordLength))
       .replace(/\{\{type\}\}/g, type)
@@ -155,7 +153,10 @@ export function buildPlaceholderContextDescription(
       .replace(/\{\{header\}\}/g, DEFAULT_HEADER)
       .replace(/\{\{placeholder_lines\}\}/g, placeholderLinesBlock)
       .replace(/\{\{extra_context\}\}/g, extraContextBlock)
-      .replace(/\{\{context\}\}/g, [DEFAULT_HEADER, extraContextBlock, placeholderLinesBlock].filter(Boolean).join("\n"));
+      .replace(
+        /\{\{context\}\}/g,
+        [DEFAULT_HEADER, extraContextBlock, placeholderLinesBlock].filter(Boolean).join("\n"),
+      );
   }
 
   // Default: header, then extra_context blocks, then placeholder lines

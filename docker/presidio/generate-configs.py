@@ -254,6 +254,18 @@ def main():
     parser.add_argument(
         "--output", default="/output", help="Output directory for generated files"
     )
+    parser.add_argument(
+        "--secondary-languages",
+        default="",
+        help="Optional comma-separated languages for a SECOND Presidio instance "
+        "(multi-language scan). When set, generates an additional config set "
+        "in --secondary-output with these languages only.",
+    )
+    parser.add_argument(
+        "--secondary-output",
+        default="/output/secondary",
+        help="Output directory for secondary Presidio config (used with --secondary-languages)",
+    )
     args = parser.parse_args()
 
     # Parse languages
@@ -264,7 +276,7 @@ def main():
 
     # Load registry
     registry_path = Path(args.registry)
-    if not registry_path.exists():
+    if not registry_path.exists:
         print(f"Error: Registry not found: {registry_path}", file=sys.stderr)
         sys.exit(1)
 
@@ -277,8 +289,8 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Generate configs
-    print(f"Generating configs for: {', '.join(languages)}")
+    # Generate primary configs
+    print(f"Generating primary configs for: {', '.join(languages)}")
 
     nlp_config = generate_nlp_config(languages, registry)
     write_yaml(nlp_config, output_dir / "nlp-config.yaml")
@@ -298,6 +310,41 @@ def main():
         f.write(install_script)
     install_path.chmod(0o755)
     print(f"  - install-models.sh")
+
+    # Generate secondary configs if requested
+    if args.secondary_languages:
+        secondary_languages = [lang.strip() for lang in args.secondary_languages.split(",") if lang.strip()]
+        if not secondary_languages:
+            print("Warning: --secondary-languages was empty, skipping secondary config generation")
+        else:
+            secondary_languages = validate_languages(secondary_languages, registry)
+            secondary_dir = Path(args.secondary_output)
+            secondary_dir.mkdir(parents=True, exist_ok=True)
+
+            print(f"Generating secondary configs for: {', '.join(secondary_languages)}")
+
+            nlp_config = generate_nlp_config(secondary_languages, registry)
+            write_yaml(nlp_config, secondary_dir / "nlp-config.yaml")
+            print(f"  - {secondary_dir}/nlp-config.yaml")
+
+            analyzer_config = generate_analyzer_config(secondary_languages)
+            write_yaml(analyzer_config, secondary_dir / "analyzer-config.yaml")
+            print(f"  - {secondary_dir}/analyzer-config.yaml")
+
+            recognizers_config = generate_recognizers_config(secondary_languages, registry)
+            write_yaml(recognizers_config, secondary_dir / "recognizers-config.yaml")
+            print(f"  - {secondary_dir}/recognizers-config.yaml")
+
+            # Build a combined install script for BOTH language sets so the
+            # Dockerfile installs all required models in one pass.
+            primary_script = install_script
+            secondary_script = generate_install_script(secondary_languages, registry)
+            combined = primary_script + "\n" + secondary_script.replace("#!/bin/sh\nset -e\n", "").replace('echo "Installing', 'echo "[secondary] Installing')
+            combined_path = output_dir / "install-models.sh"
+            with open(combined_path, "w") as f:
+                f.write(combined)
+            combined_path.chmod(0o755)
+            print(f"  - install-models.sh (combined, both primary + secondary models)")
 
     print("Done!")
 

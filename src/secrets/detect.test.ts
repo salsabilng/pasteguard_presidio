@@ -183,8 +183,7 @@ describe("detectSecrets", () => {
 
 // Test data for secret types
 const openaiApiKey = "sk-proj-not-a-real-key-abc123def456ghi789jkl012mno345pqr678stu901vwx";
-const anthropicApiKey =
-  "sk-ant_REDACTED_NOT_A_REAL_KEY";
+const anthropicApiKey = "sk-ant_REDACTED_NOT_A_REAL_KEY";
 const stripeTestKey = "sk-safe-prefix-REDACTED_NOT_A_REAL_KEY";
 const stripeLiveKey = "sk-safe-liveprefix-REDACTED_NOT_A_REAL_KEY";
 const revenueCatKey = "sk_REDACTED_NOT_A_REAL_KEY";
