@@ -1,0 +1,52 @@
+# PasteGuard - Docker Compose (All-in-One Image)
+#
+# Production:
+#   docker compose up -d
+#
+# Development (only Presidio, run Bun locally with hot-reload):
+#   docker compose up presidio -d
+#   bun run dev
+#
+# European languages:
+#   PASTEGUARD_TAG=eu docker compose up -d
+#
+# Custom languages (local build):
+#   LANGUAGES=en,de,ja docker compose up -d --build
+
+services:
+  # Production: Full all-in-one
+  pasteguard:
+    image: ghcr.io/sgasser/pasteguard:${PASTEGUARD_TAG:-en}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        LANGUAGES: ${LANGUAGES:-en}
+    ports:
+      - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ./config.yaml:/pasteguard/config.yaml:ro
+      - ./data:/pasteguard/data
+    restart: unless-stopped
+
+  # Development: Only Presidio (for local Bun with hot-reload)
+  presidio:
+    profiles: ["dev"]
+    image: ghcr.io/sgasser/pasteguard:${PASTEGUARD_TAG:-en}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        LANGUAGES: ${LANGUAGES:-en}
+    ports:
+      - "5002:5002"
+    environment:
+      - START_APP=false
+      - PORT=5002
+      - WORKERS=1
+    healthcheck:
+      disable: true
+    restart: unless-stopped

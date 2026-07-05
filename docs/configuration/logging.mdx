@@ -1,0 +1,77 @@
+---
+title: Logging
+description: Configure request logging
+---
+
+```yaml
+logging:
+  database: ./data/pasteguard.db
+  retention_days: 30
+  log_masked_content: true
+```
+
+## Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `database` | `./data/pasteguard.db` | SQLite database path |
+| `retention_days` | `30` | Days to keep logs. `0` = forever |
+| `log_masked_content` | `true` | Log masked version for dashboard |
+
+## Database
+
+Logs are stored in SQLite:
+
+```yaml
+logging:
+  database: ./data/pasteguard.db
+```
+
+In Docker, this is persisted via volume:
+
+```yaml
+volumes:
+  - ./data:/pasteguard/data
+```
+
+## Retention
+
+Logs older than `retention_days` are automatically deleted:
+
+```yaml
+logging:
+  retention_days: 30   # Keep for 30 days
+  # retention_days: 7  # Keep for 7 days
+  # retention_days: 0  # Keep forever
+```
+
+## Content Logging
+
+### Masked Content (default)
+
+Logs the masked version for dashboard preview:
+
+```yaml
+logging:
+  log_masked_content: true
+```
+
+Shows what was actually sent upstream with PII and secrets replaced by placeholders.
+
+### No Content
+
+Disable content logging:
+
+```yaml
+logging:
+  log_masked_content: false
+```
+
+Only metadata (timestamps, models, PII detected) is logged.
+
+## Security
+
+- Raw request/response content is **never** logged — only the masked version, and only when `log_masked_content` is enabled
+- With `secrets_detection.action: route_local`, content is not logged at all when secrets are detected, since secrets stay unmasked for the local provider
+- Only secret types are logged if `log_detected_types: true`
+- Masked content shows placeholders like `[[EMAIL_ADDRESS_1]]` and `[[API_KEY_SK_1]]`, not real values
