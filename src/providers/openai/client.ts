@@ -84,7 +84,20 @@ export async function callOpenAI(
     return { response: response.body, isStreaming: true, model };
   }
 
-  return { response: await response.json(), isStreaming: false, model };
+  // Parse non-streaming JSON response — handle non-JSON bodies gracefully
+  const textBody = await response.text();
+  try {
+    const json = JSON.parse(textBody);
+    return { response: json, isStreaming: false, model };
+  } catch {
+    // The upstream returned 200 OK with non-JSON content (HTML error page, empty body, etc.)
+    const preview = textBody.slice(0, 200);
+    throw new ProviderError(
+      502,
+      "Upstream returned non-JSON response",
+      `Status ${response.status} from ${endpoint} — body is not JSON: ${preview}${textBody.length > 200 ? "..." : ""}`,
+    );
+  }
 }
 
 /**
