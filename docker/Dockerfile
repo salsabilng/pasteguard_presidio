@@ -87,18 +87,104 @@ COPY --from=generator /output/analyzer-config.yaml /app/presidio_analyzer/conf/d
 COPY --from=generator /output/secondary/ /app/presidio_analyzer/conf/secondary/
 
 # Create a secondary app entrypoint that loads config from secondary/
-# Only works when --secondary-languages is passed at build time
-RUN cat > /app/app_secondary.py << 'PYEOF'
+# Only works when --secondary-languages is passed at build time.
+# Also installs flask and pyyaml into the final image (needed by app_secondary.py).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3-pip \
+    && pip3 install --no-cache-dir --break-system-packages flask pyyaml \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY <<'PYEOF' /app/app_secondary.py
 """Secondary Presidio analyzer entrypoint.
 Loads config from conf/secondary/ and runs on a different port (5003).
+This mirrors the structure of the default /app/app.py shipped in the
+presidio-analyzer base image, but reads its config from conf/secondary/.
 """
 import os
+import yaml
+from flask import Flask, request, jsonify
+from presidio_analyzer import AnalyzerEngine
+from presidio_analyzer.nlp_engine import NlpEngineProvider
 
-os.environ.setdefault("ANALYZER_CONF_FILE", "/app/presidio_analyzer/conf/secondary/default_analyzer.yaml")
-os.environ.setdefault("NLP_CONF_FILE", "/app/presidio_analyzer/conf/secondary/default.yaml")
-os.environ.setdefault("RECOGNIZERS_CONF_FILE", "/app/presidio_analyzer/conf/secondary/default_recognizers.yaml")
+CONF_DIR = "/app/presidio_analyzer/conf/secondary"
 
-from presidio_analyzer.app import create_app  # noqa: E402
+
+def _load_yaml(name: str) -> dict:
+    path = os.path.join(CONF_DIR, name)
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def create_app() -> Flask:
+    nlp_conf = _load_yaml("default.yaml")
+    analyzer_conf = _load_yaml("default_analyzer.yaml")
+
+    # Build NLP engine from conf/secondary/default.yaml
+    if nlp_conf:
+        nlp_engine_provider = NlpEngineProvider(nlp_configuration=nlp_conf)
+    else:
+        # Fallback: hardcode Indonesian model
+        nlp_engine_provider = NlpEngineProvider(
+            nlp_configuration={
+                "nlp_engine_name": "spacy",
+                "models": [{"lang_code": "id", "model_name": "id_ner_spacy_indonesian"}],
+            }
+        )
+
+    supported_languages = analyzer_conf.get("supported_languages", ["id"])
+    default_score_threshold = analyzer_conf.get("default_score_threshold", 0)
+
+    analyzer = AnalyzerEngine(
+        nlp_engine=nlp_engine_provider.create_engine(),
+        supported_languages=supported_languages,
+        default_score_threshold=default_score_threshold,
+    )
+
+    app = Flask(__name__)
+
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "ok"})
+
+    @app.route("/analyze", methods=["POST"])
+    def analyze():
+        body = request.get_json(force=True)
+        text = body.get("text", "")
+        language = body.get("language", "id")
+        entities = body.get("entities")
+        score_threshold = body.get("score_threshold")
+
+        kwargs = {"language": language}
+        if entities is not None:
+            kwargs["entities"] = entities
+        if score_threshold is not None:
+            kwargs["score_threshold"] = score_threshold
+
+        results = analyzer.analyze(text=text, **kwargs)
+        return jsonify([
+            {
+                "entity_type": r.entity_type,
+                "start": r.start,
+                "end": r.end,
+                "score": r.score,
+            }
+            for r in results
+        ])
+
+    @app.route("/recognizers", methods=["GET"])
+    def recognizers():
+        language = request.args.get("language", "id")
+        all_recognizers = []
+        for recognizer in analyzer.registry.get_recognizers(language=language):
+            all_recognizers.append({
+                "name": recognizer.name,
+                "supported_language": recognizer.supported_language,
+            })
+        return jsonify(all_recognizers)
+
+    return app
 PYEOF
 
 # Install spaCy models (combined primary + secondary models)
