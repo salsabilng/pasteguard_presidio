@@ -691,3 +691,48 @@ ${rsaKey}
     }
   });
 });
+
+// Test custom regex patterns
+describe("detectSecrets - Custom Patterns", () => {
+  test("detects custom regex pattern in text", () => {
+    const config: SecretsDetectionConfig = {
+      ...defaultConfig,
+      entities: [],
+      custom_patterns: [
+        { name: "TV_MODEL", regex: "TV-\\d{4,8}" },
+      ],
+    };
+    const result = detectSecrets("The TV-5599 model is great", config);
+    expect(result.detected).toBe(true);
+    expect(result.matches[0].type).toBe("TV_MODEL");
+    expect(result.locations).toBeDefined();
+    expect(result.locations?.[0].start).toBe(4);
+    expect(result.locations?.[0].end).toBe(11);
+  });
+
+  test("strips anchors from custom patterns so embedded text matches", () => {
+    const config: SecretsDetectionConfig = {
+      ...defaultConfig,
+      entities: [],
+      custom_patterns: [
+        { name: "PART_NUMBER", regex: "^PN-\\d{6}$" },
+      ],
+    };
+    const result = detectSecrets("My part is PN-123456 here", config);
+    expect(result.detected).toBe(true);
+    expect(result.matches[0].type).toBe("PART_NUMBER");
+  });
+
+  test("works alongside built-in patterns", () => {
+    const config: SecretsDetectionConfig = {
+      ...defaultConfig,
+      entities: ["OPENSSH_PRIVATE_KEY"],
+      custom_patterns: [
+        { name: "CUSTOM_TOKEN", regex: "TOK-[A-Z]{6}" },
+      ],
+    };
+    const result = detectSecrets("Token: TOK-ABCDEF and a key", config);
+    expect(result.detected).toBe(true);
+    expect(result.matches.some((m) => m.type === "CUSTOM_TOKEN")).toBe(true);
+  });
+});

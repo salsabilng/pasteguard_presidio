@@ -5,10 +5,25 @@ interface CustomPattern {
   regex: string;
 }
 
+/**
+ * Strips leading ^ and trailing $ from a regex pattern.
+ * These anchors prevent matching embedded text (e.g. TV model inside a chat message).
+ * Custom patterns should match anywhere in the text, not require the full string.
+ */
+function stripAnchors(pattern: string): string {
+  let result = pattern;
+  // Strip leading ^ (possibly with whitespace/newline flags)
+  if (result.startsWith("^")) result = result.slice(1);
+  // Strip trailing $ (possibly with whitespace/newline flags)
+  if (result.endsWith("$")) result = result.slice(0, -1);
+  return result;
+}
+
 export function createCustomRegexDetector(patterns: CustomPattern[]): PatternDetector {
   const compiled = patterns.map((p) => ({
     name: p.name,
-    regex: new RegExp(p.regex, "g"),
+    // Strip anchors so custom patterns match embedded text, not just full-string matches
+    regex: new RegExp(stripAnchors(p.regex), "g"),
   }));
 
   return {
