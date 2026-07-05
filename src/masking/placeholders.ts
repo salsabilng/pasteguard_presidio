@@ -84,7 +84,9 @@ export function resolveContextHint(
 
   return hint
     .replace(/\{\{type\}\}/g, type)
-    .replace(/\{\{value:([^}]+)\}\}/g, (_, selector) => extractValueChars(originalValue, selector))
+    .replace(/\{\{value:([^}]+)\}\}/g, (_, selector) =>
+      extractValueChars(originalValue, selector),
+    )
     .replace(/\{\{value\}\}/g, originalValue)
     .replace(/\{\{initial\}\}/g, (originalValue[0] ?? "?").toUpperCase())
     .replace(/\{\{word_length\}\}/g, String(originalValue.length));
@@ -130,24 +132,49 @@ export function buildPlaceholderContextDescription(
   // No placeholders and no extra context -> nothing to inject
   if (entries.length === 0 && extraContext.length === 0) return "";
 
-  // Build per-placeholder lines
-  const lines: string[] = [];
-  for (const [placeholder, original] of entries) {
-    const initial = original[0]?.toUpperCase() || "?";
-    const wordLength = original.length;
-
+  // Group by type: { PERSON: [[PERSON_1]], [[PERSON_2]], ... }
+  const groups: Record<string, string[]> = {};
+  for (const [placeholder] of entries) {
     const typeMatch = placeholder.match(/^\[\[([A-Z_]+)_\d+\]\]$/);
-    const type = typeMatch ? typeMatch[1] : "";
-    const contextHint = resolveContextHint(type ? hints[type] : undefined, type, original);
+    const type = typeMatch ? typeMatch[1] : "OTHER";
+    if (!groups[type]) groups[type] = [];
+    groups[type].push(placeholder);
+  }
 
-    const line = DEFAULT_LINE_TEMPLATE.replace(/\{\{placeholder\}\}/g, placeholder)
-      .replace(/\{\{initial\}\}/g, initial)
-      .replace(/\{\{word_length\}\}/g, String(wordLength))
-      .replace(/\{\{type\}\}/g, type)
-      .replace(/\{\{context_hint\}\}/g, contextHint)
-      .replace(/\{\{value\}\}/g, original);
+  // For large numbers of placeholders (>5 per type), compact into a grouped summary.
+  // Individual lines only when there are few placeholders.
+  const COMPACT_THRESHOLD = 5;
+  const anyTypeLarge = Object.values(groups).some((g) => g.length > COMPACT_THRESHOLD);
 
-    lines.push(line);
+  const lines: string[] = [];
+  if (anyTypeLarge && !config?.system_prompt_template) {
+    // COMPACT mode: group by type
+    for (const [type, placeholders] of Object.entries(groups)) {
+      if (placeholders.length <= COMPACT_THRESHOLD) {
+        for (const ph of placeholders) {
+          lines.push(`${ph}: real value masked, refer to it as this label`);
+        }
+      } else {
+        const hint = type in hints ? ` (${hints[type]})` : "";
+        lines.push(`${type} (${placeholders.length} masked values${hint}): ${placeholders.join(", ")}`);
+      }
+    }
+  } else {
+    // Individual mode: one line per placeholder
+    for (const [placeholder, original] of entries) {
+      const typeMatch = placeholder.match(/^\[\[([A-Z_]+)_\d+\]\]$/);
+      const type = typeMatch ? typeMatch[1] : "";
+      const contextHint = resolveContextHint(type ? hints[type] : undefined, type, original);
+
+      const line = DEFAULT_LINE_TEMPLATE.replace(/\{\{placeholder\}\}/g, placeholder)
+        .replace(/\{\{initial\}\}/g, (original[0] ?? "?").toUpperCase())
+        .replace(/\{\{word_length\}\}/g, String(original.length))
+        .replace(/\{\{type\}\}/g, type)
+        .replace(/\{\{context_hint\}\}/g, contextHint)
+        .replace(/\{\{value\}\}/g, original);
+
+      lines.push(line);
+    }
   }
 
   const placeholderLinesBlock = lines.join("\n");

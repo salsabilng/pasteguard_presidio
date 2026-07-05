@@ -23,7 +23,7 @@ export function createCustomRegexDetector(patterns: CustomPattern[]): PatternDet
   const compiled = patterns.map((p) => ({
     name: p.name,
     // Strip anchors so custom patterns match embedded text, not just full-string matches
-    regex: new RegExp(stripAnchors(p.regex), "g"),
+    regex: new RegExp(stripAnchors(p.regex), "gi"),
   }));
 
   return {
