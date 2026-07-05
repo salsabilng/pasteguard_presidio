@@ -71,10 +71,13 @@ languages:
     phone_context: [τηλέφωνο, αριθμός, κινητό, κλήση, τηλεφωνώ, καλώ]
 
   # Indonesian (custom spaCy NER model from HuggingFace)
+  # nerdv2/nergrit Indonesian NER — 19 entity types, 95%+ token accuracy.
+  # Built on Universal Dependencies Indonesian GSD + nergrit_corpus.
+  # https://huggingface.co/nerdv2/id_nergrit_indonesian_spacy
   id:
     name: Indonesian
-    model: id_ner_spacy_indonesian
-    wheel_url: "https://huggingface.co/asmud/ner-spacy-indonesian/resolve/main/id_ner_spacy_indonesian-1.1.0-py3-none-any.whl"
+    model: id_nergrit_indonesian_spacy
+    wheel_url: "https://huggingface.co/nerdv2/id_nergrit_indonesian_spacy/resolve/main/id_nergrit_indonesian_spacy-1.0.0-py3-none-any.whl"
     phone_context: [telepon, nomor, ponsel, seluler, telepon seluler, menelepon]
 
   # Italian

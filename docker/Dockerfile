@@ -129,7 +129,7 @@ def create_app() -> Flask:
         nlp_engine_provider = NlpEngineProvider(
             nlp_configuration={
                 "nlp_engine_name": "spacy",
-                "models": [{"lang_code": "id", "model_name": "id_ner_spacy_indonesian"}],
+                "models": [{"lang_code": "id", "model_name": "id_nergrit_indonesian_spacy"}],
             }
         )
 

@@ -269,24 +269,48 @@ export class PIIDetector {
     return result;
   }
 
+  /**
+   * Health check across all configured Presidio URLs.
+   * Returns true only if EVERY URL responds healthy.
+   * In multi-language scan mode, all instances must be up to be useful.
+   */
   async healthCheck(): Promise<boolean> {
-    for (const url of this.presidioUrls) {
-      try {
-        const response = await fetch(`${url}/health`, {
-          method: "GET",
-          signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
-        });
-        if (response.ok) return true;
-      } catch {
-        // Try next instance
-      }
-    }
-    return false;
+    const results = await Promise.all(
+      this.presidioUrls.map(async (url) => {
+        try {
+          const response = await fetch(`${url}/health`, {
+            method: "GET",
+            signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+          });
+          return response.ok;
+        } catch {
+          return false;
+        }
+      }),
+    );
+    return results.every((ok) => ok);
+  }
+
+  async healthCheckAll(): Promise<{ url: string; healthy: boolean }[]> {
+    return Promise.all(
+      this.presidioUrls.map(async (url) => {
+        try {
+          const response = await fetch(`${url}/health`, {
+            method: "GET",
+            signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
+          });
+          return { url, healthy: response.ok };
+        } catch {
+          return { url, healthy: false };
+        }
+      }),
+    );
   }
 
   async waitForReady(maxRetries = 30, delayMs = 1000): Promise<boolean> {
     for (let i = 1; i <= maxRetries; i++) {
-      if (await this.healthCheck()) {
+      const allHealthy = await this.healthCheck();
+      if (allHealthy) {
         return true;
       }
       if (i < maxRetries) {
@@ -299,10 +323,19 @@ export class PIIDetector {
       }
     }
     process.stdout.write("\n");
+    // Log which URLs are down
+    const statuses = await this.healthCheckAll();
+    for (const s of statuses) {
+      console.error(`[STARTUP]   ${s.url}: ${s.healthy ? "✓ healthy" : "✗ unreachable"}`);
+    }
     return false;
   }
 
-  async isLanguageSupported(url: string, language: string): Promise<boolean> {
+  /**
+   * Check whether a given language is supported on a specific URL.
+   * In multi-language scan mode, this lets us check the right instance.
+   */
+  async isLanguageSupportedOnUrl(url: string, language: string): Promise<boolean> {
     try {
       const response = await fetch(`${url}/analyze`, {
         method: "POST",
@@ -320,20 +353,41 @@ export class PIIDetector {
     }
   }
 
+  /**
+   * Pick the right Presidio URL for a given language.
+   * In multi_language_scan mode with explicit presidio_url_languages,
+   * uses that mapping. Otherwise falls back to the first URL.
+   */
+  private getUrlForLanguage(language: string): string {
+    const idx = this.perUrlLanguages.indexOf(language as SupportedLanguage);
+    if (idx >= 0 && idx < this.presidioUrls.length) {
+      return this.presidioUrls[idx];
+    }
+    return this.presidioUrls[0];
+  }
+
+  async isLanguageSupported(language: string): Promise<boolean> {
+    const url = this.getUrlForLanguage(language);
+    return this.isLanguageSupportedOnUrl(url, language);
+  }
+
   async validateLanguages(languages: string[]): Promise<{
     available: string[];
     missing: string[];
   }> {
+    // In multi-language mode, check the correct URL per language.
+    // In single-mode, check the only available URL.
     const results = await Promise.all(
-      languages.map(async (lang) => ({
-        lang,
-        supported: await this.isLanguageSupported(this.presidioUrls[0], lang),
-      })),
+      languages.map(async (lang) => {
+        const url = this.getUrlForLanguage(lang);
+        const supported = await this.isLanguageSupportedOnUrl(url, lang);
+        return { lang, url, supported };
+      }),
     );
 
     this.languageValidation = {
       available: results.filter((r) => r.supported).map((r) => r.lang),
-      missing: results.filter((r) => !r.supported).map((r) => r.lang),
+      missing: results.filter((r) => !r.supported).map((r) => `${r.lang} (on ${r.url})`),
     };
 
     return this.languageValidation;

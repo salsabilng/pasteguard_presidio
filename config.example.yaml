@@ -131,9 +131,9 @@ pii_detection:
   # Available (25 languages): ca, zh, hr, da, nl, en, fi, fr, de, el,
   #   id, it, ja, ko, lt, mk, nb, pl, pt, ro, ru, sl, es, sv, uk
   #
-  # Note: Indonesian (id) requires the id_ner_spacy_indonesian model.
+  # Note: Indonesian (id) requires the id_nergrit_indonesian_spacy model.
   #       It is pre-installed in the PasteGuard Docker image. For manual setup:
-  #       pip install https://huggingface.co/asmud/ner-spacy-indonesian/resolve/main/id_ner_spacy_indonesian-1.1.0-py3-none-any.whl
+  #       pip install https://huggingface.co/nerdv2/id_nergrit_indonesian_spacy/resolve/main/id_nergrit_indonesian_spacy-1.0.0-py3-none-any.whl
   #
   # Docker: Uses PASTEGUARD_LANGUAGES env var (auto-configured per image)
   # Local:  Uncomment the array below and comment out the env var line
