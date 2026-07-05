@@ -19,6 +19,7 @@ export const SUPPORTED_LANGUAGES = [
   "ko", // Korean
   "lt", // Lithuanian
   "mk", // Macedonian
+  "xx", // Multilingual (xx_ent_wiki_sm fallback)
   "nb", // Norwegian
   "pl", // Polish
   "pt", // Portuguese

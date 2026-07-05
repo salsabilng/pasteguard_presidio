@@ -735,4 +735,48 @@ describe("detectSecrets - Custom Patterns", () => {
     expect(result.detected).toBe(true);
     expect(result.matches.some((m) => m.type === "CUSTOM_TOKEN")).toBe(true);
   });
+
+  test("matches LG TV model with mixed alphanumeric suffix (7EB6C)", () => {
+    const config: SecretsDetectionConfig = {
+      ...defaultConfig,
+      entities: [],
+      custom_patterns: [
+        { name: "TV_MODEL", regex: '(\\d{2,3})(?=qned|nu|mrgb)(?:qned|nu|mrgb)([a-z0-9]{2,4})([a-z0-9]{2,4})' },
+      ],
+    };
+    const tests = [
+      { text: "65QNED7EB6C", expected: "65QNED7EB6C" },
+      { text: "65QNED76BAA", expected: "65QNED76BAA" },
+      { text: "55QNED80ABC", expected: "55QNED80ABC" },
+      { text: "75QNED70BSA", expected: "75QNED70BSA" },
+      { text: "tv 65qned7eb6c model", expected: "65qned7eb6c" }, // case-insensitive
+    ];
+    for (const { text, expected } of tests) {
+      const result = detectSecrets(text, config);
+      expect(result.detected).toBe(true);
+      expect(result.matches[0].type).toBe("TV_MODEL");
+      const matched = text.slice(result.locations![0].start, result.locations![0].end);
+      expect(matched.toLowerCase()).toBe(expected.toLowerCase());
+    }
+  });
+
+  test("TV model pattern does not false-positive on common text", () => {
+    const config: SecretsDetectionConfig = {
+      ...defaultConfig,
+      entities: [],
+      custom_patterns: [
+        { name: "TV_MODEL", regex: '(\\d{2,3})(?=qned|nu|mrgb)(?:qned|nu|mrgb)([a-z0-9]{2,4})([a-z0-9]{2,4})' },
+      ],
+    };
+    const negativeTests = [
+      "the QNED TV is nice",
+      "we have qned 5 products",
+      "I love my TV",
+      "65QNED is the size",
+    ];
+    for (const text of negativeTests) {
+      const result = detectSecrets(text, config);
+      expect(result.detected).toBe(false);
+    }
+});
 });

@@ -70,6 +70,18 @@ languages:
     model: el_core_news_lg
     phone_context: [τηλέφωνο, αριθμός, κινητό, κλήση, τηλεφωνώ, καλώ]
 
+  # Multilingual fallback (Explosion's xx_ent_wiki_sm) — handles any language
+  # when no language-specific model is available. Labels: LOC, MISC, ORG, PER.
+  # Use this for the primary Presidio instance when you want broad language
+  # coverage with one model, and add specific languages (e.g. id) on a
+  # secondary instance for higher accuracy.
+  xx:
+    name: Multilingual
+    model: xx_ent_wiki_sm
+    # When supported_languages includes 'xx', Presidio falls back to it for
+    # any language that doesn't have its own model. This is configured in
+    # analyzer-engine's NLP engine settings (see generate-configs.py).
+
   # Indonesian (custom spaCy NER model from HuggingFace)
   # nerdv2/nergrit Indonesian NER — 19 entity types, 95%+ token accuracy.
   # Built on Universal Dependencies Indonesian GSD + nergrit_corpus.

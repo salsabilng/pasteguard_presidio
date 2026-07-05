@@ -128,8 +128,13 @@ pii_detection:
   # Supported languages for PII detection
   # Auto-detects language from input text and uses appropriate model
   #
-  # Available (25 languages): ca, zh, hr, da, nl, en, fi, fr, de, el,
-  #   id, it, ja, ko, lt, mk, nb, pl, pt, ro, ru, sl, es, sv, uk
+  # Available (26 languages): ca, zh, hr, da, nl, en, fi, fr, de, el,
+  #   id, it, ja, ko, lt, mk, xx, nb, pl, pt, ro, ru, sl, es, sv, uk
+  #
+  # Recommended setup for Indonesian + general coverage:
+  #   primary instance (port 5002): languages: [xx]   → multilingual fallback
+  #   secondary instance (port 5003): languages: [id] → Indonesian-specific model
+  #   config.yaml: presidio_url_languages: [xx, id]
   #
   # Note: Indonesian (id) requires the id_nergrit_indonesian_spacy model.
   #       It is pre-installed in the PasteGuard Docker image. For manual setup:
@@ -137,13 +142,13 @@ pii_detection:
   #
   # Docker: Uses PASTEGUARD_LANGUAGES env var (auto-configured per image)
   # Local:  Uncomment the array below and comment out the env var line
-  languages: ${PASTEGUARD_LANGUAGES:-en}
-  # languages:
-  #   - en
+  #languages: ${PASTEGUARD_LANGUAGES:-en}
+  languages:
+    - xx
   #   - de
   #   - fr
   #   - es
-  #   - id
+    - id
 
   # Fallback language if detected language is not in the list above
   fallback_language: en

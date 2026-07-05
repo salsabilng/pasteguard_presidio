@@ -63,6 +63,8 @@ def generate_nlp_config(languages: list[str], registry: dict) -> dict:
                 "LOC": "LOCATION",
                 "GPE": "LOCATION",
                 "ORG": "ORGANIZATION",
+                # Multilingual xx_ent_wiki_sm
+                "MISC": "MISC",
                 # Polish (NKJP corpus)
                 "persName": "PERSON",
                 "placeName": "LOCATION",

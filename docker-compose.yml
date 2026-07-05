@@ -14,7 +14,7 @@
 #   LANGUAGES=en,de,ja docker compose up -d --build
 #
 # Multi-language scan (en primary + id secondary Presidio in same container):
-#   LANGUAGES=en SECONDARY_LANGUAGES=id docker compose up -d --build
+#   LANGUAGES=xx SECONDARY_LANGUAGES=id docker compose up -d --build
 
 services:
   # Production: Full all-in-one
