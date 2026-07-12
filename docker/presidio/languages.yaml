@@ -175,3 +175,64 @@ languages:
     name: Ukrainian
     model: uk_core_news_lg
     phone_context: [телефон, номер, мобільний, мобілка, дзвінок, дзвони]
+
+# =============================================================================
+# Custom Recognizers (Presidio PatternRecognizer definitions)
+# =============================================================================
+# Add your own pattern-based recognizers here. Each entry becomes a Presidio
+# PatternRecognizer with context-aware scoring:
+#
+#   name:        identifier (becomes Presidio entity type)
+#   regex:       JavaScript/PCRE regex pattern (no anchors needed)
+#   score:       base confidence (0.0-1.0, default 0.85)
+#   context:     list of words that BOOST the score when found near the match
+#                (e.g. [tv, model] for TV model numbers — Presidio uses this
+#                to boost confidence when these context words appear nearby)
+#   deny_list:   values to never match (e.g. common false-positive values)
+#   languages:   optional list of language codes; defaults to all configured
+
+custom_recognizers:
+  # LG TV model numbers (e.g. 65QNED7EB6C, 55QNED80ABC, 75QNED70BSA)
+  - name: TV_MODEL
+    regex: '(\d{2,3})(?=qned|nu|mrgb)(?:qned|nu|mrgb)([a-z0-9]{2,4})([a-z0-9]{2,4})'
+    score: 0.85
+    context:
+      - tv
+      - model
+      - panel
+      - television
+      - qned
+      - oled
+      - screen
+      - unit
+      - serial
+
+  # LG part numbers (e.g. EAD00588145, EA0000123456)
+  - name: PART_NUMBER
+    regex: 'E?A[A-Z]?\d{8,12}'
+    score: 0.7
+    context:
+      - part
+      - ead
+      - component
+      - assembly
+      - module
+      - number
+      - bom
+    deny_list:
+      - EAD00000000000
+
+  # Indonesian phone numbers (e.g. +6281234567890, 081234567890)
+  - name: ID_PHONE
+    regex: '(?:\+62|62|0)8\d{8,11}'
+    score: 0.8
+    context:
+      - phone
+      - telpon
+      - nomor
+      - hp
+      - whatsapp
+      - wa
+      - call
+      - contact
+      - mobile

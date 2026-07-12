@@ -159,7 +159,16 @@ LANGUAGE_RECOGNIZERS = {
 
 
 def generate_recognizers_config(languages: list[str], registry: dict) -> dict:
-    """Generate recognizers-config.yaml content."""
+    """Generate recognizers-config.yaml content.
+
+    Each custom pattern (from registry['custom_recognizers']) is rendered as
+    a Presidio PatternRecognizer with:
+      - name: <pattern name>
+      - supported_languages: all configured languages
+      - pattern with regex, name, score
+      - context: list of words that boost confidence when near the match
+      - deny_list: optional list of values to never match
+    """
     all_langs = [{"language": lang} for lang in languages]
 
     # Phone recognizer needs context words per language
@@ -203,6 +212,33 @@ def generate_recognizers_config(languages: list[str], registry: dict) -> dict:
                     "type": "predefined",
                 })
 
+    # Add user-defined custom recognizers (regex + context patterns)
+    # These are defined in registry['custom_recognizers'] and rendered as
+    # PatternRecognizer entries that Presidio's analyzer can use directly.
+    custom_recognizers = registry.get("custom_recognizers", [])
+    for spec in custom_recognizers:
+        if not spec.get("name") or not spec.get("regex"):
+            continue
+        pattern_entry = {
+            "name": f"{spec['name'].lower()}_pattern",
+            "regex": spec["regex"],
+            "score": spec.get("score", 0.85),
+        }
+        recognizer_entry = {
+            "name": spec["name"],
+            "supported_languages": spec.get(
+                "languages",
+                [{"language": lang} for lang in languages],
+            ),
+            "patterns": [pattern_entry],
+            "type": "custom",
+        }
+        if spec.get("context"):
+            recognizer_entry["context"] = spec["context"]
+        if spec.get("deny_list"):
+            recognizer_entry["deny_list"] = spec["deny_list"]
+        recognizers.append(recognizer_entry)
+
     return {
         "supported_languages": languages,
         "global_regex_flags": 26,
@@ -241,6 +277,33 @@ def write_yaml(data: dict, path: Path) -> None:
         yaml.dump(data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
 
+def generate_custom_recognizer_file(patterns: list, output_path: Path) -> None:
+    """Run the custom-recognizer generator script."""
+    import json
+    import subprocess
+    if not patterns:
+        # Write an empty recognizer file
+        with open(output_path, "w") as f:
+            f.write('"""No custom patterns configured."""\n\n')
+            f.write("def get_custom_recognizers():\n    return []\n")
+        return
+    # Use the standalone generator script
+    generator = Path(__file__).parent / "generate-custom-recognizer.py"
+    if not generator.exists():
+        print(f"Warning: {generator} not found, skipping custom recognizer generation")
+        return
+    result = subprocess.run(
+        ["python", str(generator), "--patterns", json.dumps(patterns), "--output", str(output_path)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Warning: custom recognizer generation failed: {result.stderr}")
+        return
+    for line in result.stdout.strip().split("\n"):
+        print(f"  {line}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate Presidio configs")
     parser.add_argument(
@@ -268,7 +331,24 @@ def main():
         default="/output/secondary",
         help="Output directory for secondary Presidio config (used with --secondary-languages)",
     )
+    parser.add_argument(
+        "--custom-patterns",
+        default="[]",
+        help='JSON array of custom regex patterns to compile into a Presidio recognizer. '
+        'Format: [{"name": "TV_MODEL", "regex": "...", "score": 0.7}]',
+    )
     args = parser.parse_args()
+
+    # Parse custom patterns
+    try:
+        import json
+        custom_patterns = json.loads(args.custom_patterns)
+    except json.JSONDecodeError as e:
+        print(f"Error: --custom-patterns is not valid JSON: {e}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(custom_patterns, list):
+        print("Error: --custom-patterns must be a JSON array", file=sys.stderr)
+        sys.exit(1)
 
     # Parse languages
     languages = [lang.strip() for lang in args.languages.split(",") if lang.strip()]
@@ -313,6 +393,14 @@ def main():
     install_path.chmod(0o755)
     print(f"  - install-models.sh")
 
+    # Generate primary custom recognizer
+    if custom_patterns:
+        print("Generating primary custom recognizer:")
+        generate_custom_recognizer_file(custom_patterns, output_dir / "custom_recognizer.py")
+    else:
+        # Always create the file so app.py can import safely
+        generate_custom_recognizer_file([], output_dir / "custom_recognizer.py")
+
     # Generate secondary configs if requested
     if args.secondary_languages:
         secondary_languages = [lang.strip() for lang in args.secondary_languages.split(",") if lang.strip()]
@@ -347,6 +435,13 @@ def main():
                 f.write(combined)
             combined_path.chmod(0o755)
             print(f"  - install-models.sh (combined, both primary + secondary models)")
+
+            # Secondary custom recognizer
+            if custom_patterns:
+                print("Generating secondary custom recognizer:")
+                generate_custom_recognizer_file(custom_patterns, secondary_dir / "custom_recognizer.py")
+            else:
+                generate_custom_recognizer_file([], secondary_dir / "custom_recognizer.py")
 
     print("Done!")
 
