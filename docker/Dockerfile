@@ -161,8 +161,8 @@ def create_app() -> Flask:
     default_score_threshold = analyzer_conf.get("default_score_threshold", 0)
 
     # Build recognizer registry with custom recognizers from config
-    registry = RecognizerRegistry()
-    registry.load_predefined_recognizers(supported_languages=supported_languages)
+    registry = RecognizerRegistry(supported_languages=supported_languages)
+    registry.load_predefined_recognizers()
     custom_recognizers = _build_recognizers(recognizers_conf)
     for recognizer in custom_recognizers:
         registry.add_recognizer(recognizer)
@@ -317,6 +317,7 @@ def _build_custom_recognizers(recognizers_conf):
 
 def create_app():
     """Build the analyzer engine with predefined + custom recognizers."""
+    from flask import Flask, request, jsonify
     from presidio_analyzer import AnalyzerEngine
     from presidio_analyzer.nlp_engine import NlpEngineProvider
     from presidio_analyzer.recognizer_registry import RecognizerRegistry
@@ -330,8 +331,8 @@ def create_app():
     default_score_threshold = analyzer_conf.get("default_score_threshold", 0)
 
     # Start with predefined recognizers for all configured languages
-    registry = RecognizerRegistry()
-    registry.load_predefined_recognizers(supported_languages=supported_languages)
+    registry = RecognizerRegistry(supported_languages=supported_languages)
+    registry.load_predefined_recognizers()
 
     # Add custom recognizers (from generate-configs.py output)
     custom_recognizers = _build_custom_recognizers(recognizers_conf)
@@ -345,9 +346,49 @@ def create_app():
         registry=registry,
     )
 
-    # Delegate to the original Presidio Flask app factory (health, analyze endpoints)
-    from presidio_analyzer.app import create_app as _orig
-    return _orig()
+    app = Flask(__name__)
+
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "ok"})
+
+    @app.route("/analyze", methods=["POST"])
+    def analyze():
+        body = request.get_json(force=True)
+        text = body.get("text", "")
+        language = body.get("language", "en")
+        entities = body.get("entities")
+        score_threshold = body.get("score_threshold")
+
+        kwargs = {"language": language}
+        if entities is not None:
+            kwargs["entities"] = entities
+        if score_threshold is not None:
+            kwargs["score_threshold"] = score_threshold
+
+        results = analyzer.analyze(text=text, **kwargs)
+        return jsonify([
+            {
+                "entity_type": r.entity_type,
+                "start": r.start,
+                "end": r.end,
+                "score": r.score,
+            }
+            for r in results
+        ])
+
+    @app.route("/recognizers", methods=["GET"])
+    def recognizers():
+        language = request.args.get("language", "en")
+        all_recognizers = []
+        for recognizer in analyzer.registry.get_recognizers(language=language):
+            all_recognizers.append({
+                "name": recognizer.name,
+                "supported_language": recognizer.supported_language,
+            })
+        return jsonify(all_recognizers)
+
+    return app
 PYEOF
 
 # Switch to non-root user for runtime
